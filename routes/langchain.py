@@ -1,0 +1,115 @@
+import json
+from flask import Flask, request, jsonify, Response
+import os
+import pyodbc
+from langchain_openai import AzureOpenAI
+from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
+from langchain_community.utilities import SQLDatabase
+from langchain_community.agent_toolkits.sql.base import create_sql_agent
+from langchain.agents import AgentExecutor
+from langchain.agents.agent_types import AgentType
+from urllib.parse import quote_plus
+from langchain.prompts.chat import ChatPromptTemplate
+from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for, jsonify
+
+
+# Variables
+OPENAI_API_KEY = "2438426fb9e8405fbbbe52782dd9e4c8"
+OPENAI_API_BASE = "https://search2123.openai.azure.com/"
+OPENAI_API_VERSION = "2024-02-01"
+OPENAI_DEPLOYMENT_NAME = "gpt23"
+OPENAI_MODEL_NAME = "gpt-35-turbo-instruct"
+
+server = 'cbnewbase.database.windows.net'
+database = 'bobdb'
+username = 'suraj'
+password = 'cyberwardens123@'
+dsn = "ODBC Driver 18 for SQL Server"
+
+# Connection string format
+DATABASE_CONNECTION_STRING = f"mssql+pyodbc://{username}:{quote_plus(password)}@{server}/{database}?driver={dsn}"
+
+# LangChain uses SQLAlchemy under the hood, here we establish database and LLM variables for use later in the script.
+db = SQLDatabase.from_uri(DATABASE_CONNECTION_STRING)
+llm = AzureOpenAI(
+    deployment_name=OPENAI_DEPLOYMENT_NAME,
+    model_name=OPENAI_MODEL_NAME,
+    api_key=OPENAI_API_KEY,
+    azure_endpoint=OPENAI_API_BASE,  # Correct parameter for Azure endpoint
+    api_version=OPENAI_API_VERSION,
+    temperature=0  # Adjusted to a typical range
+)
+
+# Establish SQL Database toolkit and LangChain Agent Executor
+toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+agent_executor = create_sql_agent(
+    llm=llm,
+    toolkit=toolkit,
+    verbose=True,
+    agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+)
+
+# Create the prompt template
+prompt_template = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are a SQL Server expert. Your task is to execute SQL queries and format the results as JSON objects with column names."),
+        ("user", "{query}\n Question: "),
+        ("system", "Provide the output in the following structured format:\n"
+                   "1. For each row, include the column names and values in JSON format.\n"
+                   "2. Each row should be a separate JSON object.\n"
+                   "3. Ensure the output is clear and systematic.\n"
+                   "Answer: "),
+        ("system", "Tables and column names:\n"
+                   "PersonalApplication (Application_id, Customer_ID, Name, Age, Occupation, Annual_Income, Monthly_Inhand_Salary, Num_Bank_Accounts, Num_Credit_Card, Interest_Rate, Num_of_Loan, Delay_from_due_date, Num_of_Delayed_Payment, Changed_Credit_Limit, Num_Credit_Inquiries, Outstanding_Debt, Credit_Utilization_Ratio, Credit_History_Age, Total_EMI_per_month, Amount_invested_monthly, Monthly_Balance, Applied_date_time, Status, Result, Message_to_User, Type_of_Loan)\n"
+                   "LoanApplications (application_id, company_name, auditing_company_name, current_assets, current_liabilities, inventory, total_debt, total_equity, total_assets, net_income, net_sales, ebit, interest_expense, operating_cash_flow, capital_expenditures, Current_Ratio, Quick_Ratio, Debt_to_Equity_Ratio, Debt_Ratio, Net_Profit_Margin, Return_on_Assets, Return_on_Equity, Interest_Coverage_Ratio, Operating_Cash_Flow_to_Total_Debt_Ratio, Free_Cash_Flow_to_Firm, User_id, Status, result)\n"
+                   "EmailClassifications (application_id, email_id, email_content, category, status, reply_message, classification_date, user_id)")
+    ]
+)
+
+
+ln = Blueprint('langchain', __name__, url_prefix='/langchain')
+
+@ln.route('/query', methods=['POST'])
+def query():
+    data = request.json
+    user_query = data.get('query')
+    if not user_query:
+        return jsonify({"error": "Query parameter is required"}), 400
+    
+    try:
+        formatted_query = prompt_template.format(query=user_query)
+        result = agent_executor.invoke(formatted_query)
+        
+        # Assuming result is a list of tuples and column names are known or can be derived
+        if 'PersonalApplication' in user_query:
+            columns = ["Application_id", "Customer_ID", "Name", "Age", "Occupation", "Annual_Income", "Monthly_Inhand_Salary", 
+                       "Num_Bank_Accounts", "Num_Credit_Card", "Interest_Rate", "Num_of_Loan", "Delay_from_due_date", 
+                       "Num_of_Delayed_Payment", "Changed_Credit_Limit", "Num_Credit_Inquiries", "Outstanding_Debt", 
+                       "Credit_Utilization_Ratio", "Credit_History_Age", "Total_EMI_per_month", "Amount_invested_monthly", 
+                       "Monthly_Balance", "Applied_date_time", "Status", "Result", "Message_to_User", "Type_of_Loan"]
+        elif 'LoanApplications' in user_query:
+            columns = ["application_id", "company_name", "auditing_company_name", "current_assets", "current_liabilities", 
+                       "inventory", "total_debt", "total_equity", "total_assets", "net_income", "net_sales", "ebit", 
+                       "interest_expense", "operating_cash_flow", "capital_expenditures", "Current_Ratio", "Quick_Ratio", 
+                       "Debt_to_Equity_Ratio", "Debt_Ratio", "Net_Profit_Margin", "Return_on_Assets", "Return_on_Equity", 
+                       "Interest_Coverage_Ratio", "Operating_Cash_Flow_to_Total_Debt_Ratio", "Free_Cash_Flow_to_Firm", 
+                       "User_id", "Status", "result"]
+        elif 'EmailClassifications' in user_query:
+            columns = ["application_id", "email_id", "email_content", "category", "status", "reply_message", 
+                       "classification_date", "user_id"]
+        else:
+            return jsonify({"error": "Unknown table in query"}), 400
+        
+        # Convert the result to JSON objects with column names
+        json_result = [dict(zip(columns, row)) for row in result]
+        
+        response = json.dumps({"result": json_result}, indent=4)
+        return Response(response, mimetype='application/json'), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+app = Flask(__name__)
+app.register_blueprint(ln)
+
+if __name__ == '__main__':
+    app.run(debug=True)
