@@ -275,7 +275,7 @@ def get_loan_application():
         conn = pyodbc.connect(connection_string)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT application_id, company_name, auditing_company_name , Status
+            SELECT *
             FROM BusinessLoanApplication
             WHERE User_id = ?
         """, user_id)
