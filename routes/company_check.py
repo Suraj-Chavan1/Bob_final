@@ -6,16 +6,15 @@ from flask import Blueprint, flash, g, redirect, render_template, request, sessi
 cp = Blueprint('company_check', __name__, url_prefix='/company_check')
 
 # Define your Azure OpenAI credentials and endpoint
-endpoint = "https://1cyberopenai.openai.azure.com/"  # Your Azure OpenAI endpoint
-key = "edecf0b547864536902473b3a986e8e8"  # Your API key
-model_name = "gpt4newsandemail"  # Replace with the actual deployment name
+endpoint = "https://ml123.openai.azure.com"
+key = "7685ac04baa54be7bf2bc88ec2e3e0ba"
+model_name = "tellmewhy"
 
 client = AzureOpenAI(
     azure_endpoint=endpoint,
     api_version="2024-02-15-preview",
     api_key=key
 )
-
 # Function to get news about a company
 def get_company_news(company_name):
     prompt = f"""

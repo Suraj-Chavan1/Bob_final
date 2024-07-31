@@ -6,6 +6,7 @@ import pyodbc
 import uuid
 import logging
 import requests
+from openai import AzureOpenAI
 
 from flask import Blueprint, jsonify, request
 from werkzeug.security import generate_password_hash
@@ -414,3 +415,135 @@ def set_to_accepted(application_id):
     finally:
         if 'conn' in locals() and conn:
             conn.close()
+            
+endpoint = "https://ml123.openai.azure.com"
+key = "7685ac04baa54be7bf2bc88ec2e3e0ba"
+model_name = "tellmewhy"
+
+client = AzureOpenAI(
+    azure_endpoint=endpoint,
+    api_version="2024-02-15-preview",
+    api_key=key
+)
+
+
+def classify_outcome_reasoning(company_name, current_ratio, quick_ratio, debt_to_equity_ratio, debt_ratio, net_profit_margin, roa, roe, interest_coverage_ratio, cash_flow_to_debt_ratio, fcff, outcome):
+    prompt = f"""
+    You are a financial expert tasked with explaining why a business loan outcome is classified as Good, Medium, or Bad based on the provided benchmarks. Given the input data and the outcome, determine why the outcome is categorized as Good, Medium, or Bad.
+
+    Benchmarks:
+    - Good:
+        - Current Ratio: >= 15.0
+        - Quick Ratio: >= 13.0
+        - Debt to Equity Ratio: <= 0.10
+        - Debt Ratio: <= 0.10
+        - Net Profit Margin: >= 20.0
+        - Return on Assets (ROA): >= 10.0
+        - Return on Equity (ROE): >= 20.0
+        - Interest Coverage Ratio: >= 20.0
+        - Operating Cash Flow to Total Debt Ratio: >= 20.0
+        - Free Cash Flow to Firm (FCFF): >= 10000000
+
+    - Medium:
+        - Current Ratio: >= 10.0 and < 15.0
+        - Quick Ratio: >= 9.0 and < 13.0
+        - Debt to Equity Ratio: > 0.10 and <= 0.20
+        - Debt Ratio: > 0.10 and <= 0.20
+        - Net Profit Margin: >= 15.0 and < 20.0
+        - Return on Assets (ROA): >= 7.0 and < 10.0
+        - Return on Equity (ROE): >= 15.0 and < 20.0
+        - Interest Coverage Ratio: >= 15.0 and < 20.0
+        - Operating Cash Flow to Total Debt Ratio: >= 15.0 and < 20.0
+        - Free Cash Flow to Firm (FCFF): >= 5000000 and < 10000000
+
+    - Bad:
+        - Current Ratio: < 5.0
+        - Quick Ratio: < 4.0
+        - Debt to Equity Ratio: >= 0.40
+        - Debt Ratio: >= 0.40
+        - Net Profit Margin: < 10.0
+        - Return on Assets (ROA): < 5.0
+        - Return on Equity (ROE): < 10.0
+        - Interest Coverage Ratio: < 10.0
+        - Operating Cash Flow to Total Debt Ratio: < 10.0
+        - Free Cash Flow to Firm (FCFF): < 1000000
+
+    Inputs:
+    - Company Name: {company_name}
+    - Current Ratio: {current_ratio}
+    - Quick Ratio: {quick_ratio}
+    - Debt to Equity Ratio: {debt_to_equity_ratio}
+    - Debt Ratio: {debt_ratio}
+    - Net Profit Margin: {net_profit_margin}
+    - Return on Assets (ROA): {roa}
+    - Return on Equity (ROE): {roe}
+    - Interest Coverage Ratio: {interest_coverage_ratio}
+    - Operating Cash Flow to Total Debt Ratio: {cash_flow_to_debt_ratio}
+    - Free Cash Flow to Firm (FCFF): {fcff}
+    - Outcome: {outcome}
+
+    Based on the provided benchmarks and the input data, explain why the outcome is classified as Good, Medium, or Bad in 2 lines in bullet markdown format always.
+    """
+
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=300,
+        temperature=0.7,
+        top_p=0.95,
+        frequency_penalty=0,
+        presence_penalty=0,
+    )
+
+    return response.choices[0].message.content.strip()
+
+@bl.route('/classify', methods=['POST'])
+def classify():
+    data = request.json
+
+    try:
+        company_name = data["company_name"]
+        current_ratio = data["Current_Ratio"]
+        quick_ratio = data["Quick_Ratio"]
+        debt_to_equity_ratio = data["Debt_to_Equity_Ratio"]
+        debt_ratio = data["Debt_Ratio"]
+        net_profit_margin = data["Net_Profit_Margin"] * 100  # Convert to percentage
+        roa = data["Return_on_Assets"] * 100  # Convert to percentage
+        roe = data["Return_on_Equity"] * 100  # Convert to percentage
+        interest_coverage_ratio = data["Interest_Coverage_Ratio"]
+        cash_flow_to_debt_ratio = data["Operating_Cash_Flow_to_Total_Debt_Ratio"] * 100  # Convert to percentage
+        fcff = data["Free_Cash_Flow_to_Firm"]
+        result = data.get("result", "Unknown")
+
+        if result == 0:
+            outcome = "Bad"
+        elif result == 1:
+            outcome = "Medium"
+        else:
+            outcome = "Good"
+
+        reasoning = classify_outcome_reasoning(
+            company_name,
+            current_ratio,
+            quick_ratio,
+            debt_to_equity_ratio,
+            debt_ratio,
+            net_profit_margin,
+            roa,
+            roe,
+            interest_coverage_ratio,
+            cash_flow_to_debt_ratio,
+            fcff,
+            outcome
+        )
+
+        return jsonify({"outcome": outcome, "reasoning": reasoning})
+
+    except KeyError as e:
+        return jsonify({"error": f"Missing key in input data: {str(e)}"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
