@@ -23,6 +23,7 @@ client = AzureOpenAI(
     api_version="2024-02-15-preview",
     api_key=key
 )
+
 def classify_email(email_content):
     prompt = f"""
     Classify the following email into one of the four categories:
@@ -211,6 +212,33 @@ def get_customer_service():
             return jsonify(result)
         else:
             return jsonify({'message': 'No data found for the category "Customer Service"'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+@email.route('/email_by_userid', methods=['GET'])
+def email_by_userid():
+    try:
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT *
+            FROM EmailClassifications
+            WHERE user_id = 1
+        """)
+        
+        rows = cursor.fetchall()
+        if rows:
+            columns = [column[0] for column in cursor.description]
+            result = [dict(zip(columns, row)) for row in rows]
+            return jsonify(result)
+        else:
+            return jsonify({'message': 'No data found for the category "Fraud and Security"'}), 404
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
