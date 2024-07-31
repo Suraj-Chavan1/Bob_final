@@ -125,21 +125,15 @@ def calculate_loan_ratios(data):
     }
     return ratios
 
-def insert_into_db(application_id, data, ratios, result_data ,user_id):
-    server = 'cbnewbase.database.windows.net'
-    database = 'bobdb'
-    username = 'suraj'
-    password = 'cyberwardens123@'
-    connection_string = f'DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password};Trusted_Connection=no;'
-
+def insert_into_db(data, ratios, result_data, user_id):
     try:
         conn = pyodbc.connect(connection_string)
         cursor = conn.cursor()
 
         create_table_sql = '''
-        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='LoanApplications' and xtype='U')
-        CREATE TABLE LoanApplications (
-            application_id UNIQUEIDENTIFIER PRIMARY KEY,
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='BusinessLoanApplication' and xtype='U')
+        CREATE TABLE BusinessLoanApplication (
+            application_id INT IDENTITY(1,1) PRIMARY KEY,
             company_name NVARCHAR(100),
             auditing_company_name NVARCHAR(100),
             current_assets FLOAT,
@@ -166,20 +160,21 @@ def insert_into_db(application_id, data, ratios, result_data ,user_id):
             Free_Cash_Flow_to_Firm FLOAT,
             User_id VARCHAR(50),
             Status NVARCHAR(50) DEFAULT 'Processing',
-            result INT
+            result INT,
+            created_at DATETIME DEFAULT (GETDATE() AT TIME ZONE 'UTC' AT TIME ZONE 'India Standard Time')
         )
         '''
         cursor.execute(create_table_sql)
 
         insert_values_sql = '''
-        INSERT INTO LoanApplications (
-            application_id, company_name, auditing_company_name, current_assets, current_liabilities, inventory, total_debt,
+        INSERT INTO BusinessLoanApplication (
+            company_name, auditing_company_name, current_assets, current_liabilities, inventory, total_debt,
             total_equity, total_assets, net_income, net_sales, ebit, interest_expense, operating_cash_flow, capital_expenditures,
             Current_Ratio, Quick_Ratio, Debt_to_Equity_Ratio, Debt_Ratio, Net_Profit_Margin, Return_on_Assets, Return_on_Equity,
-            Interest_Coverage_Ratio, Operating_Cash_Flow_to_Total_Debt_Ratio, Free_Cash_Flow_to_Firm, result , User_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
+            Interest_Coverage_Ratio, Operating_Cash_Flow_to_Total_Debt_Ratio, Free_Cash_Flow_to_Firm, result, User_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         '''
-        cursor.execute(insert_values_sql, application_id, data["company_name"], data["auditing_company_name"], data["current_assets"],
+        cursor.execute(insert_values_sql, data["company_name"], data["auditing_company_name"], data["current_assets"],
                        data["current_liabilities"], data["inventory"], data["total_debt"], data["total_equity"], data["total_assets"],
                        data["net_income"], data["net_sales"], data["ebit"], data["interest_expense"], data["operating_cash_flow"],
                        data["capital_expenditures"], ratios["Current Ratio"], ratios["Quick Ratio"], ratios["Debt-to-Equity Ratio"],
@@ -262,7 +257,7 @@ def calculate_and_send():
         response.raise_for_status()
         result = response.json()
         print(result[0])
-        insert_into_db(application_id, mapped_data, ratios, result[0], user_id)
+        insert_into_db( mapped_data, ratios, result[0], user_id)
         return jsonify({"application_id": application_id, "UserID": user_id, "ratios": ratios, "azure_response": result}), 200
     except requests.exceptions.RequestException as error:
         logging.error(f'Error sending request to Azure: {error}')
@@ -281,7 +276,7 @@ def get_loan_application():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT application_id, company_name, auditing_company_name , Status
-            FROM LoanApplications
+            FROM BusinessLoanApplication
             WHERE User_id = ?
         """, user_id)
         
@@ -308,7 +303,7 @@ def all_loans():
         conn = pyodbc.connect(connection_string)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT * FROM LoanApplications
+            SELECT * FROM BusinessLoanApplication
         """)
         
         rows = cursor.fetchall()
@@ -337,7 +332,7 @@ def get_data_from_applicationid(application_id):
         
         # Use the application_id to fetch the specific loan application
         cursor.execute("""
-            SELECT * FROM LoanApplications WHERE application_id = ?
+            SELECT * FROM BusinessLoanApplication WHERE application_id = ?
         """, application_id)
         
         row = cursor.fetchone()
@@ -365,7 +360,7 @@ def set_to_rejected(application_id):
 
         # Update the status to 'rejected' for the specified application_id
         cursor.execute("""
-            UPDATE LoanApplications
+            UPDATE BusinessLoanApplication
             SET Status = 'rejected'
             WHERE application_id = ?
         """, application_id)
@@ -397,7 +392,7 @@ def set_to_accepted(application_id):
 
         # Update the status to 'accepted' for the specified application_id
         cursor.execute("""
-            UPDATE LoanApplications
+            UPDATE BusinessLoanApplication
             SET Status = 'accepted'
             WHERE application_id = ?
         """, application_id)

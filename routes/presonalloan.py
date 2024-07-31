@@ -138,7 +138,7 @@ def create_table(conn):
     create_table_sql = """
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PersonalApplication' AND xtype='U')
     CREATE TABLE PersonalApplication (
-        Application_id UNIQUEIDENTIFIER PRIMARY KEY,
+        Application_id INT IDENTITY(1,1) PRIMARY KEY,
         Customer_ID INT,
         Name NVARCHAR(100),
         Age INT,
@@ -159,36 +159,37 @@ def create_table(conn):
         Total_EMI_per_month FLOAT,
         Amount_invested_monthly FLOAT,
         Monthly_Balance FLOAT,
-        Applied_date_time DATETIME DEFAULT GETDATE(),
+        Applied_date_time DATETIME DEFAULT (GETDATE() AT TIME ZONE 'UTC' AT TIME ZONE 'India Standard Time'),
         Status NVARCHAR(50),
         Result VARCHAR(100),
         Message_to_User NVARCHAR(MAX),
         Type_of_Loan NVARCHAR(50)
+    
     )
     """
     cursor.execute(create_table_sql)
     conn.commit()
     logging.info("Table created successfully!")
 
-def insert_data(conn, application_id, customer_data, status, result, message_to_user,Type_of_Loan="Personal Loan"):
+def insert_data(conn, customer_data, status, result, message_to_user,Type_of_Loan="Personal Loan"):
     cursor = conn.cursor()
     insert_sql = """
     INSERT INTO PersonalApplication (
-        Application_id, Customer_ID, Name, Age, Occupation, Annual_Income, Monthly_Inhand_Salary,
+        Customer_ID, Name, Age, Occupation, Annual_Income, Monthly_Inhand_Salary,
         Num_Bank_Accounts, Num_Credit_Card, Interest_Rate, Num_of_Loan, Delay_from_due_date,
         Num_of_Delayed_Payment, Changed_Credit_Limit, Num_Credit_Inquiries, Outstanding_Debt,
         Credit_Utilization_Ratio, Credit_History_Age, Total_EMI_per_month, Amount_invested_monthly,
         Monthly_Balance, Status, Result, Message_to_User, Type_of_Loan
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     cursor.execute(insert_sql, (
-        application_id, customer_data["Customer_ID"], customer_data["Name"], customer_data["Age"],
+        customer_data["Customer_ID"], customer_data["Name"], customer_data["Age"],
         customer_data["Occupation"], customer_data["Annual_Income"], customer_data["Monthly_Inhand_Salary"],
         customer_data["Num_Bank_Accounts"], customer_data["Num_Credit_Card"], customer_data["Interest_Rate"],
         customer_data["Num_of_Loan"], customer_data["Delay_from_due_date"], customer_data["Num_of_Delayed_Payment"],
         customer_data["Changed_Credit_Limit"], customer_data["Num_Credit_Inquiries"], customer_data["Outstanding_Debt"],
         customer_data["Credit_Utilization_Ratio"], customer_data["Credit_History_Age"], customer_data["Total_EMI_per_month"],
-        customer_data["Amount_invested_monthly"], customer_data["Monthly_Balance"], status, result, message_to_user,Type_of_Loan
+        customer_data["Amount_invested_monthly"], customer_data["Monthly_Balance"], status, result, message_to_user, Type_of_Loan
     ))
     conn.commit()
     logging.info("Data inserted successfully!")
@@ -196,7 +197,7 @@ def insert_data(conn, application_id, customer_data, status, result, message_to_
 @ploan.route('/ploan', methods=['POST'])
 def submit():
     data = request.json
-    application_idjson = str(uuid.uuid4())
+    application_idjson = None
     type_of_loan = data.get('type_of_loan')
     link = data.get('link')
     result = form_ocr(link)
@@ -207,7 +208,6 @@ def submit():
 
     try:
         request_data = {
-            "application_id": application_idjson,
             "customer_data": {
                 "Customer_ID": int(result['Customer ID:']),
                 "Name": result['Customer Name:'],
@@ -235,7 +235,7 @@ def submit():
         logging.error(f'Missing key in OCR result: {e}')
         return jsonify({"error": f"Missing required field in OCR result: {e}"}), 400
 
-    if not all([request_data['application_id'], request_data['customer_data']]):
+    if not all([ request_data['customer_data']]):
         return jsonify({"error": "Missing required fields"}), 400
 
     request_data_payload = {
@@ -265,7 +265,7 @@ def submit():
     if conn:
         create_table(conn)
         try:
-            insert_data(conn, request_data['application_id'], request_data['customer_data'], status, data_result_form_json["Results"][0], message_to_user,type_of_loan)
+            insert_data(conn , request_data['customer_data'], status, data_result_form_json["Results"][0], message_to_user,type_of_loan)
         except Exception as e:
             logging.error(f'Failed to insert data: {e}')
             return jsonify({"error": "Failed to insert data"}), 500
