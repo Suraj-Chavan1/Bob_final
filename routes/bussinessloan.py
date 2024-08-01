@@ -545,5 +545,39 @@ def classify():
         return jsonify({"error": f"Missing key in input data: {str(e)}"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@bl.route('/loanbyuserid/<user_id>', methods=['GET'])
+def loanbyuserid(user_id):
+    try:
+        # Establish the database connection
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        # Select all loan applications for the specified user_id
+        cursor.execute("""
+            SELECT * FROM BusinessLoanApplication
+            WHERE user_id = ?
+        """, user_id)
+        
+        # Fetch all rows from the executed query
+        rows = cursor.fetchall()
+        
+        # Check if any rows were returned
+        if rows:
+            # Convert the rows to a list of dictionaries
+            applications = [dict(zip([column[0] for column in cursor.description], row)) for row in rows]
+            return jsonify({'applications': applications}), 200
+        else:
+            return jsonify({'message': 'No data found for the provided user ID'}), 404
+
+    except Exception as e:
+        # Log the exception to the console for debugging
+        logging.error(f"Exception occurred: {e}")
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
 
 
