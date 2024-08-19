@@ -14,9 +14,9 @@ password = 'cyberwardens123@'
 connection_string = f'DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password};Trusted_Connection=no;'
 
 # Azure OpenAI configuration
-endpoint = "https://ml123.openai.azure.com"
-key = "7685ac04baa54be7bf2bc88ec2e3e0ba"
-model_name = "tellmewhy"
+endpoint = "https://bobopenai1.openai.azure.com/"
+key = "8af8440fb3e34b99b5abe914d8548709"
+model_name = "gpt23133"
 
 client = AzureOpenAI(
     azure_endpoint=endpoint,

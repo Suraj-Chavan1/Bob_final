@@ -10,10 +10,10 @@ from langchain.prompts.chat import ChatPromptTemplate
 from urllib.parse import quote_plus
 
 # Variables
-OPENAI_API_KEY = "7685ac04baa54be7bf2bc88ec2e3e0ba"
-OPENAI_API_BASE = "https://ml123.openai.azure.com/"
+OPENAI_API_KEY = "8af8440fb3e34b99b5abe914d8548709"
+OPENAI_API_BASE = "https://bobopenai1.openai.azure.com/"
 OPENAI_API_VERSION = "2024-02-01"
-OPENAI_DEPLOYMENT_NAME = "gptlangchain"
+OPENAI_DEPLOYMENT_NAME = "gpt2321"
 OPENAI_MODEL_NAME = "gpt-35-turbo-instruct"
 
 server = 'cbnewbase.database.windows.net'
