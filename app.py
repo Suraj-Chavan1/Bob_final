@@ -14,7 +14,7 @@ app.register_blueprint(company_check.cp)
 
 @app.route('/', methods=['GET'])
 def hello_world():
-    return 'Hello, World!'
+    return 'Azure Server is running!'
 
 
 if __name__ == '__main__':
