@@ -173,7 +173,10 @@ def classify_and_save_email():
         return jsonify({"error": "email_id, email_content, and user_id are required"}), 400
 
     category = classify_email(email_content)
-    application_id = str(uuid.uuid4())  # Generate a random application ID
+    summary = summarize_email(email_content)
+    urgency = detect_urgency(email_content)
+    priority = calculate_priority(email_content)['priority']
+    sentiment = analyze_sentiment(email_content)
 
     try:
         conn = pyodbc.connect(connection_string)
@@ -182,18 +185,14 @@ def classify_and_save_email():
         # Prepare and execute the insert statement
         current_datetime = datetime.now()
         cursor.execute("""
-            INSERT INTO EmailClassificationsNew (email_id, email_content, category, status, reply_message, classification_date, user_id,summary,urgency,priority,sentiment)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)
-        """, (application_id, email_id, email_content, category, 'Processed', f'Null', current_datetime, user_id,summarize_email(email_content),detect_urgency(email_content),calculate_priority(email_content)['priority'],analyze_sentiment(email_content)))
+            INSERT INTO EmailClassificationsNew (email_id, email_content, category, status, reply_message, classification_date, user_id, summary, urgency, priority, sentiment)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (email_id, email_content, category, 'Processed', 'Null', current_datetime, user_id, summarize_email(email_content), urgency, priority, sentiment))
 
-        # Commit the transaction
         conn.commit()
-
-        # Close the connection
         conn.close()
 
         return jsonify({
-            "application_id": application_id,
             "email_id": email_id,
             "email_content": email_content,
             "category": category,
