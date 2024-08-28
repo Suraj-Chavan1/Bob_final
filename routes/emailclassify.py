@@ -7,6 +7,136 @@ from flask import (
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 import uuid
+
+
+#genrated response
+
+import pandas as pd
+from openai import AzureOpenAI
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Load scheme data and FAQ data (as provided in your code)
+schemes = pd.DataFrame({
+    'SchemeName': ['Small Business Loan', 'Education Loan', 'Green Energy Loan', 'Women Entrepreneur Loan', 
+                   'Farmers Loan', 'Retired Military Personnel Loan', 'First Time Home Buyer Loan', 
+                   'Startup Loan', 'Student Loan', 'Renewable Energy Loan', 
+                   'Rural Development Loan', 'Healthcare Loan', 'Solar Energy Loan', 
+                   'Fisherman Loan', 'Elderly Care Loan'],
+    'SchemeInfo': ['Empower your small business with our flexible loan options designed for growth and sustainability', 
+                   'Support your education journey with our specialized loans for students.', 
+                   'Invest in a greener future with our loans for renewable energy projects', 
+                   'Boost your business with our loans tailored for ambitious women entrepreneurs', 
+                   'Enhance your agricultural potential with our financial support for farmers.', 
+                   'Enjoy financial assistance tailored for retired military personnel to support your post-service life', 
+                   'Make your dream home a reality with our first-time homebuyer loans', 
+                   'Kickstart your entrepreneurial journey with our funding options for new startups.', 
+                   'Ease your educational expenses with our comprehensive student loan solutions.', 
+                   'Accelerate your renewable energy initiatives with our specialized loan offerings.', 
+                   'Transform rural communities with our development loans designed for infrastructure and growth', 
+                   'Access funding for healthcare improvements and medical expenses with our tailored loans', 
+                   'Power up your solar energy projects with our dedicated financing options.', 
+                   'Support your fishing business and equipment needs with our customized loans', 
+                   'Provide quality care for the elderly with our financial solutions designed for care services'],
+    'Link': ['https://www.bankofbaroda.in/personal-banking/loans/small-business-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/education-loan',
+             'https://www.bankofbaroda.in/personal-banking/loans/green-energy-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/women-entrepreneur-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/farmers-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/retired-military-personnel-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/first-time-home-buyer-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/startup-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/student-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/renewable-energy-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/rural-development-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/healthcare-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/solar-energy-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/fisherman-loan', 
+             'https://www.bankofbaroda.in/personal-banking/loans/elderly-care-loan']
+})
+
+faqs = pd.DataFrame({
+    'Question': [
+        'How do I open a savings account?',
+        'What are the types of loans offered by Bank of Baroda?',
+        'How can I apply for a debit card?',
+        'What is the process for online fund transfer?',
+        'How do I update my KYC details?',
+        'What are the interest rates for fixed deposits?',
+        'How can I register for internet banking?',
+        'What is the minimum balance required for a savings account?',
+        'How do I report a lost or stolen card?',
+        'What are the working hours of Bank of Baroda branches?'
+    ],
+    'Answer': [
+        'To open a savings account, visit your nearest Bank of Baroda branch with valid ID proof, address proof, and passport-size photographs. You can also initiate the process online through our website.',
+        'Bank of Baroda offers various types of loans including home loans, personal loans, car loans, education loans, and business loans. Check our website for specific loan products.',
+        'Existing account holders can apply for a debit card through internet banking, mobile banking, or by visiting the nearest branch. New account holders usually receive a debit card with their account opening kit.',
+        'You can transfer funds online using our internet banking or mobile banking services. Log in, select the transfer option, enter the beneficiary details and amount, and authorize the transaction using your secure password or OTP.',
+        'To update your KYC details, visit your home branch with the latest KYC documents. Some updates can also be done through internet banking or our mobile app.',
+        'Fixed deposit interest rates vary based on the deposit amount and tenure. Please check our website or contact your nearest branch for the latest rates.',
+        'You can register for internet banking by visiting our website and clicking on the "Register" option under internet banking. Youll need your account details and registered mobile number to complete the process.',
+        'The minimum balance requirement varies based on the type of savings account and your location (urban, semi-urban, or rural). Please check with your local branch or our website for specific details.',
+        'If your card is lost or stolen, immediately call our 24/7 customer care number to block the card. You can also block the card through internet banking or mobile banking.',
+        'Most Bank of Baroda branches operate from Monday to Friday, 10:00 AM to 4:00 PM, and on Saturdays from 10:00 AM to 1:00 PM. Timings may vary for specific branches or on holidays.'
+    ]
+})
+
+def get_scheme_details(scheme_name):
+    if scheme_name not in schemes['SchemeName'].values:
+        return None, None
+    scheme = schemes[schemes['SchemeName'] == scheme_name].iloc[0]
+    return scheme['SchemeInfo'], scheme['Link']
+
+def generate_response(email_content):
+    client = AzureOpenAI(
+        azure_endpoint="https://bobopenai1.openai.azure.com/",
+        api_version="2024-02-15-preview",
+        api_key="8af8440fb3e34b99b5abe914d8548709"
+    )
+
+    # Check if the query matches any FAQ
+    matched_faq = faqs[faqs['Question'].str.lower().str.contains(email_content.lower())]
+    
+    if not matched_faq.empty:
+        return matched_faq.iloc[0]['Answer']
+
+    prompt = f"""
+    Generate a response to the following email:
+    {email_content}
+
+  
+
+    If the query is related to a specific loan scheme, include relevant details from our available schemes:
+    {schemes[['SchemeName', 'SchemeInfo']].to_string(index=False)}
+
+    Please provide a professional and helpful response that addresses the specific concerns or queries in the email.
+    """
+
+    response = client.chat.completions.create(
+        model="gpt23133",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500,
+        temperature=0.7
+    )
+
+    return response.choices[0].message.content.strip()
+
+def send_email(subject, body, recipient_email):
+    sender_email = "cyberwardensbankofbaroda@gmail.com"
+    sender_password = "bkcBKC123"
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+#genrated response end here
 server = 'cbnewbase.database.windows.net'
 database = 'bobdb'
 username = 'suraj'
@@ -185,9 +315,9 @@ def classify_and_save_email():
         # Prepare and execute the insert statement
         current_datetime = datetime.now()
         cursor.execute("""
-            INSERT INTO EmailClassificationsNew (email_id, email_content, category, status, reply_message, classification_date, user_id, summary, urgency, priority, sentiment)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (email_id, email_content, category, 'Processed', 'Null', current_datetime, user_id, summarize_email(email_content), urgency, priority, sentiment))
+            INSERT INTO EmailClassificationsNew (email_id, email_content, category, status, reply_message, classification_date, user_id, summary, urgency, priority, sentiment ,ai_generated_response )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
+        """, (email_id, email_content, category, 'Processed', 'Null', current_datetime, user_id, summarize_email(email_content), urgency, priority, sentiment,generate_response(email_content)))
 
         conn.commit()
         conn.close()
@@ -347,3 +477,19 @@ def email_by_userid():
     finally:
         if 'conn' in locals() and conn:
             conn.close()
+            
+            
+
+
+@email.route('/process-email', methods=['POST'])
+def process_email():
+    data = request.json
+    email_content = data.get('email_content')
+    # recipient_email = "suraj.chavan22@vit.edu"
+    # subject = "AI Response to your email"
+
+    response = generate_response(email_content)
+
+    # send_email(subject, response, recipient_email)
+
+    return jsonify({'message': 'Email processed and sent successfully','response':response}), 200
