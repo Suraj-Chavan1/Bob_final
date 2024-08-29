@@ -329,7 +329,7 @@ def calculate_priority(email_content):
 
 email = Blueprint('emailclassify', __name__, url_prefix='/emailclassify')
 
-@email.route('/classify_email', methods=['POST'])
+@email.route('/classify_email_to_user', methods=['POST'])
 def classify_and_save_email():
     data = request.json
     email_id = data.get('email_id')
@@ -578,7 +578,7 @@ def email_by_applicationid():
 
 
 @email.route('/regenerate-response', methods=['POST'])
-def generate_response():
+def regenerate_response():
     # Get JSON data from the request
     data = request.json
 
@@ -601,12 +601,12 @@ def generate_response():
 def process_email():
     data = request.json
     email_content = data.get('email_content')
-    # recipient_email = "suraj.chavan22@vit.edu"
-    # subject = "AI Response to your email"
+    recipient_email=data.get('recipient_email')
+    subject = "Respond Mail From Bank Of Baroda"
 
-    response = generate_response(email_content)
+    response = data.get('response')
 
-    # send_email(subject, response, recipient_email)
+    send_email(subject, response, recipient_email)
 
     return jsonify({'message': 'Email processed and sent successfully','response':response}), 200
 
