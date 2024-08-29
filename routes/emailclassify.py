@@ -505,6 +505,43 @@ def get_all_emails():
         if 'conn' in locals() and conn:
             conn.close()
 
+@email.route('/email_by_applicationid', methods=['GET'])
+def email_by_applicationid():
+    try:
+        # Get the application_id from the request query parameters
+        application_id = request.args.get('application_id')
+        
+        if not application_id:
+            return jsonify({'error': 'Application ID is required'}), 400
+
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        # Use the application_id in the SQL query
+        cursor.execute("""
+            SELECT *
+            FROM EmailClassificationsNew
+            WHERE application_id = ?
+        """, application_id)
+        
+        rows = cursor.fetchall()
+        if rows:
+            columns = [column[0] for column in cursor.description]
+            result = [dict(zip(columns, row)) for row in rows]
+            return jsonify(result)
+        else:
+            return jsonify({'message': f'No data found for application_id {application_id}'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+
+
 @email.route('/process-email', methods=['POST'])
 def process_email():
     data = request.json
