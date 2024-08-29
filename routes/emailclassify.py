@@ -123,6 +123,43 @@ def generate_response(email_content):
 
     return response.choices[0].message.content.strip()
 
+def regenerate_response(email_content, context):
+    client = AzureOpenAI(
+        azure_endpoint="https://bobopenai1.openai.azure.com/",
+        api_version="2024-02-15-preview",
+        api_key="8af8440fb3e34b99b5abe914d8548709"
+    )
+
+    # Check if the query matches any FAQ
+    matched_faq = faqs[faqs['Question'].str.lower().str.contains(email_content.lower())]
+    
+    if not matched_faq.empty:
+        return matched_faq.iloc[0]['Answer']
+
+    prompt = f"""
+    Generate a response to the following email:
+    {email_content}
+
+    Context provided by the user:
+    {context}
+
+    If the query is related to a specific loan scheme, include relevant details from our available schemes:
+    {schemes[['SchemeName', 'SchemeInfo']].to_string(index=False)}
+
+    Please provide a professional and helpful response that addresses the specific concerns or queries in the email.
+    """
+
+    response = client.chat.completions.create(
+        model="gpt23133",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500,
+        temperature=0.7
+    )
+
+    return response.choices[0].message.content.strip()
+
+
+
 def send_email(subject, body, recipient_email):
     sender_email = "cyberwardensbankofbaroda@gmail.com"
     sender_password = "bkcBKC123"
@@ -540,6 +577,24 @@ def email_by_applicationid():
             conn.close()
 
 
+@email.route('/regenerate-response', methods=['POST'])
+def generate_response():
+    # Get JSON data from the request
+    data = request.json
+
+    # Check if 'email_content' and 'context' are provided
+    if 'email_content' not in data or 'context' not in data:
+        return jsonify({'error': 'Missing required fields: email_content and context'}), 400
+
+    email_content = data['email_content']
+    context = data['context']
+
+    # Call the regenerate_response function
+    try:
+        response = regenerate_response(email_content, context)
+        return jsonify({'response': response})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @email.route('/process-email', methods=['POST'])
@@ -554,3 +609,52 @@ def process_email():
     # send_email(subject, response, recipient_email)
 
     return jsonify({'message': 'Email processed and sent successfully','response':response}), 200
+
+
+@email.route('/replymessage_by_applicationid', methods=['POST'])
+def replymessage_by_applicationid():
+    try:
+        # Get the application_id and reply_message from the request JSON body
+        data = request.get_json()
+        application_id = data.get('application_id')
+        reply_message = data.get('reply_message')
+        
+        if not application_id:
+            return jsonify({'error': 'Application ID is required'}), 400
+
+        if not reply_message:
+            return jsonify({'error': 'Reply message is required'}), 400
+
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        # Update the reply_message in the EmailClassificationsNew table
+        cursor.execute("""
+            UPDATE EmailClassificationsNew
+            SET reply_message = ?
+            WHERE application_id = ?
+        """, reply_message, application_id)
+        
+        conn.commit()
+
+        # Fetch the updated record to confirm the update
+        cursor.execute("""
+            SELECT *
+            FROM EmailClassificationsNew
+            WHERE application_id = ?
+        """, application_id)
+        
+        rows = cursor.fetchall()
+        if rows:
+            columns = [column[0] for column in cursor.description]
+            result = [dict(zip(columns, row)) for row in rows]
+            return jsonify(result)
+        else:
+            return jsonify({'message': f'No data found for application_id {application_id}'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
