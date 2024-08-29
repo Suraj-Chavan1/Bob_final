@@ -4,7 +4,7 @@ from email.mime.text import MIMEText
 
 def send_email(subject, body, recipient_email):
     sender_email = "cyberwardensbankofbaroda@gmail.com"
-    sender_password = "bkcBKC123"  # Update this with the application-specific password
+    sender_password = "mepw ipyw lffr jviw"  # Update this with the application-specific password
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
