@@ -578,9 +578,10 @@ def email_by_applicationid():
 
 
 @email.route('/regenerate-response', methods=['POST'])
-def regenerate_response():
+def regenerate_response_for_email():
     # Get JSON data from the request
-    data = request.json
+    data=request.json
+    
 
     # Check if 'email_content' and 'context' are provided
     if 'email_content' not in data or 'context' not in data:
