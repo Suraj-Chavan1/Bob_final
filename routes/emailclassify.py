@@ -479,7 +479,31 @@ def email_by_userid():
             conn.close()
             
             
+@email.route('/get_all_emails', methods=['GET'])
+def get_all_emails():
+    try:
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
 
+        cursor.execute("""
+            SELECT *
+            FROM EmailClassificationsNew
+        """)
+        
+        rows = cursor.fetchall()
+        if rows:
+            columns = [column[0] for column in cursor.description]
+            result = [dict(zip(columns, row)) for row in rows]
+            return jsonify(result)
+        else:
+            return jsonify({'message': 'Error No email Found'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
 
 @email.route('/process-email', methods=['POST'])
 def process_email():
