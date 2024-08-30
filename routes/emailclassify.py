@@ -263,8 +263,20 @@ def analyze_sentiment(email_content):
 
 
 def detect_urgency(email_content):
+    
+    urgency_keywords = [
+        "immediately","immediate", "asap", "urgent", "deadline", "soon", "quickly", "today", "tomorrow", "fast",
+        "critical", "important", "time-sensitive", "respond promptly", "end of day", "eod",
+        "escalate", "priority", "overdue", "final notice", "last chance", "account suspension",
+        "payment due", "late fee", "penalty", "account closure", "funds transfer", "dispute resolution",
+        "fraud alert", "security breach", "risk management", "authorization required", "approve now",
+        "loan approval", "payment confirmation", "balance alert", "minimum balance", "insufficient funds",
+        "chargeback", "interest rate change", "maturity date", "rate lock", "withdrawal limit",
+        "account statement", "transaction limit", "funding deadline", "account update required",
+        "document submission", "loan processing", "credit limit", "risk assessment", "compliance issue",
+        "account verification", "transaction approval", "security update", "financial review", "audit"
+    ]
     # Keywords for detecting urgency
-    urgency_keywords = ["immediately", "asap", "urgent", "deadline", "soon", "quickly", "today", "tomorrow", "fast"]
     if any(keyword in email_content.lower() for keyword in urgency_keywords):
         return "urgent"
     return "non-urgent"
